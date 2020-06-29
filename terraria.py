@@ -5,12 +5,13 @@ from pprint import pprint
 
 from typing import Set, Union, ClassVar, Dict, Tuple, Iterable
 
+from networkx import kamada_kawai_layout, Graph, complete_graph
+
 HARD_MODE = False
 
 
 # Refer https://terraria.gamepedia.com/House
 # These figures exclude walls
-
 MIN_HOUSE_WIDTH = 3
 MIN_HOUSE_HEIGHT = 2
 MIN_HOUSE_AREA_WITH_FRAME = 60
@@ -261,3 +262,38 @@ def print_quadrants(quadrants: Iterable[BiomeQuadrants]):
 NPC.load_all()
 QUADRANTS = tuple(get_allowed_biomes())
 print(f'{len(QUADRANTS)} quadrant layouts loaded')
+
+
+def layout():
+    npcs = tuple(NPC.ALL_NPCs.values())
+
+    for quadrants in QUADRANTS:
+        # https://en.wikipedia.org/wiki/Force-directed_graph_drawing
+        #    using the Kamada–Kawai algorithm to quickly generate a
+        #    reasonable initial layout and then the Fruchterman–Reingold
+        #    algorithm to improve the placement of neighbouring nodes
+
+        unique_quads = set(quadrants)
+
+        n = len(npcs) + len(set(quadrants))
+
+        # Due to the crowding parameter, the graph is fully connected
+        graph = complete_graph(n)
+
+        optimal_distances = {
+            {
+                for dest_node in range(n)
+                if dest_node != source_node
+            }
+            for source_node in range(n)
+        }
+
+        positions = kamada_kawai_layout(
+            G=graph,
+            dim=2,
+        )
+
+        exit()
+
+
+layout()
