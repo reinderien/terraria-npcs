@@ -262,17 +262,15 @@ print(f'{len(QUADRANTS)} quadrant layouts loaded')
 
 
 def layout():
-    npcs = tuple(NPC.ALL_NPCs.values())
+    npcs = tuple(
+        npc
+        for npc in NPC.ALL_NPCs.values()
+        if HARD_MODE or not npc.hard_mode
+    )
+    n = len(npcs)
 
     for quadrants in QUADRANTS:
-        # https://en.wikipedia.org/wiki/Force-directed_graph_drawing
-        #    using the Kamada–Kawai algorithm to quickly generate a
-        #    reasonable initial layout and then the Fruchterman–Reingold
-        #    algorithm to improve the placement of neighbouring nodes
-
         unique_quads = set(quadrants)
-
-        n = len(npcs) + len(set(quadrants))
 
         exit()
 
