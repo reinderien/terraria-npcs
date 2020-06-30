@@ -1,11 +1,8 @@
 from dataclasses import dataclass, field
 from enum import IntEnum
 from itertools import chain, combinations
-from pprint import pprint
 
 from typing import Set, Union, ClassVar, Dict, Tuple, Iterable
-
-from networkx import kamada_kawai_layout, Graph, complete_graph
 
 HARD_MODE = False
 
@@ -276,22 +273,6 @@ def layout():
         unique_quads = set(quadrants)
 
         n = len(npcs) + len(set(quadrants))
-
-        # Due to the crowding parameter, the graph is fully connected
-        graph = complete_graph(n)
-
-        optimal_distances = {
-            {
-                for dest_node in range(n)
-                if dest_node != source_node
-            }
-            for source_node in range(n)
-        }
-
-        positions = kamada_kawai_layout(
-            G=graph,
-            dim=2,
-        )
 
         exit()
 
