@@ -26,9 +26,13 @@ class Biome(IntEnum):
     biome-related preferences will reference the primary biome where the player
     is, rather than where the NPC or its home is
     """
-    DUNGEON = 1
-    CORRUPTION = 2
-    CRIMSON = 3
+
+    # "the price multiplier will always be set to the maximum 150% if the NPC
+    # is [...] located in the Corruption, Crimson, or Dungeon
+    # DUNGEON = 1
+    # CORRUPTION = 2
+    # CRIMSON = 3
+
     MUSHROOM = 4
     HALLOW = 5
     JUNGLE = 6
@@ -221,8 +225,6 @@ def get_allowed_biomes() -> Iterable[BiomeQuadrants]:
     ]
     if HARD_MODE:
         upper_biomes.append(Biome.HALLOW)
-    else:
-        upper_biomes.append(Biome.CRIMSON)
 
     # Uniform biomes
     yield from (
