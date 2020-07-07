@@ -201,6 +201,13 @@ class NPC:
         if biome in self.hates_biome: return 1.10
         return 1.00
 
+    def pair_cost(self, other: 'NPC') -> float:
+        if other in self.loves_npc: return 0.90
+        if other in self.likes_npc: return 0.95
+        if other in self.dislikes_npc: return 1.05
+        if other in self.hates_npc: return 1.10
+        return 1.00
+
 
 """
  II I
@@ -281,10 +288,20 @@ def layout(biomes: BiomeQuadrants, initial_seed: int):
     )
     n = len(npcs)
 
-    biome_costs = np.array([
+    pair_coeffs = np.array([
+        [this_npc.pair_cost(other_npc) for other_npc in npcs]
+        for this_npc in npcs
+    ])
+
+    biome_coeffs = np.array([
         [npc.biome_cost(biome) for biome in biomes]
         for npc in npcs
     ])
+
+    # Pair costs: 25 cols
+    # Biome costs: 4 cols
+    # Simple crowding cost: 1 col
+    # Complex crowding cost: 1 col
 
     def complete_cost(par):
         pass
