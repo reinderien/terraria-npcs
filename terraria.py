@@ -4,6 +4,9 @@ from itertools import chain, combinations
 
 from typing import Set, Union, ClassVar, Dict, Tuple, Iterable
 
+import numpy as np
+
+
 HARD_MODE = False
 
 
@@ -191,6 +194,13 @@ class NPC:
     def __str__(self):
         return self.name
 
+    def biome_cost(self, biome: Biome) -> float:
+        if biome in self.loves_biome: return 0.90
+        if biome in self.likes_biome: return 0.95
+        if biome in self.dislikes_biome: return 1.05
+        if biome in self.hates_biome: return 1.10
+        return 1.00
+
 
 """
  II I
@@ -263,7 +273,7 @@ QUADRANTS = tuple(get_allowed_biomes())
 print(f'{len(QUADRANTS)} quadrant layouts loaded')
 
 
-def layout():
+def layout(biomes: BiomeQuadrants, initial_seed: int):
     npcs = tuple(
         npc
         for npc in NPC.ALL_NPCs.values()
@@ -271,10 +281,14 @@ def layout():
     )
     n = len(npcs)
 
-    for quadrants in QUADRANTS:
-        unique_quads = set(quadrants)
+    biome_costs = np.array([
+        [npc.biome_cost(biome) for biome in biomes]
+        for npc in npcs
+    ])
 
-        exit()
+    def complete_cost(par):
+        pass
+    exit()
 
 
-layout()
+layout(QUADRANTS[7], 0)

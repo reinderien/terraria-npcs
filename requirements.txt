@@ -1,2 +1,4 @@
 ipympl
+matplotlib
 notebook
+numpy
