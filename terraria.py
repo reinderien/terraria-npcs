@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import IntEnum
 from itertools import chain, combinations
+from time import time
 
 from typing import Set, Union, ClassVar, Dict, Tuple, Iterable
 
@@ -53,6 +54,17 @@ class Biome(IntEnum):
 
     def __str__(self):
         return self.name
+
+    @classmethod
+    def from_coords(cls, quadrants: 'BiomeQuadrants', x: float, y: float) -> 'Biome':
+        return quadrants[
+            {
+                (True, True): 0,
+                (False, True): 1,
+                (False, False): 2,
+                (True, False): 3,
+            }[x >= 0, y >= 0]
+        ]
 
 
 ResolvedNPCs = Tuple[Union[str, 'NPC'], ...]
@@ -210,6 +222,27 @@ class NPC:
         if other in self.hates_npc: return 1.10
         return 1.00
 
+    def print_result(self, x: float, y: float, cost: np.ndarray, biome: Biome):
+        best_pair = cost[:25].min()
+        worst_pair = cost[:25].max()
+        pair = cost[:25].prod()
+
+        biome_cost = cost[25:29].prod()
+
+        overall = cost.prod()
+
+        print(
+            f'{self.name:15} '
+            f'{biome.name:12}'
+            f'{x:6.0f} '
+            f'{y:6.0f} '
+            f'{overall:4.2f} '
+            f'{worst_pair:4.2f} '
+            f'{best_pair:4.2f} '
+            f'{pair:4.2f} '
+            f'{biome_cost:4.2f}'
+        )
+
 
 """
  II I
@@ -282,7 +315,14 @@ QUADRANTS = tuple(get_allowed_biomes())
 print(f'{len(QUADRANTS)} quadrant layouts loaded')
 
 
-def layout(biomes: BiomeQuadrants, initial_seed: int):
+def optimise(
+    biomes: BiomeQuadrants,
+    method: str,
+    n_iters: int,
+    initial_seed: int,
+    show: bool=True,
+    detail: bool=False,
+):
     npcs = tuple(
         npc
         for npc in NPC.ALL_NPCs.values()
@@ -336,7 +376,7 @@ def layout(biomes: BiomeQuadrants, initial_seed: int):
         μ = 1 + (biome_coeffs - 1)/sigmoid
         return μ
 
-    def complete_cost(par: np.ndarray) -> float:
+    def complete_cost(par: np.ndarray) -> np.ndarray:
         # par will be 38x1 for 19 NPCs, so needs to be reshaped to 19x2
         nodes = par.reshape((-1, 2))
 
@@ -346,11 +386,13 @@ def layout(biomes: BiomeQuadrants, initial_seed: int):
         norms = np.linalg.norm(coord_diffs, axis=2)  # 19x19
 
         all_costs = np.concatenate((
-            pair_cost(norms),
-            biome_cost(nodes),
+            pair_cost(norms),   # n=19
+            biome_cost(nodes),  # 4
         ), axis=1)
-        npc_costs = all_costs.prod(axis=1)
-        mean = npc_costs.mean()
+        return all_costs
+
+    def cost_sum(par: np.ndarray) -> float:
+        mean = complete_cost(par).prod(axis=1).mean()
         return mean
 
     def initial() -> np.ndarray:
@@ -368,17 +410,78 @@ def layout(biomes: BiomeQuadrants, initial_seed: int):
     # basinhopping, differential_evolution, shgo, or dual_annealing
 
     result = opt.basinhopping(
-        func=complete_cost,
+        func=cost_sum,
         x0=initial(),
+        niter=n_iters,
         T=CMAX - CMIN,  # T should be comparable to the separation between local minima
         minimizer_kwargs={
-            # 'method': any of opt.MINIMIZE_METHODS
+            'method': method,
         },
         seed=rand,
-        disp=True,
+        disp=detail,
     )
 
-    exit()
+    def print_result():
+        print(f'Lowest mean cost: {result.fun:.3f}')
+        print(f'Iterations: {result.nit}')
+
+        if not detail:
+            return
+
+        print('NPC results:')
+
+        locs = result.x.reshape((-1, 2))
+        costs = complete_cost(result.x)
+
+        print(
+            f'{"NPC":15} '
+            f'{"Biome":12}'
+            f'{"X":>6} '
+            f'{"Y":>6} '
+            f'{"Tot":>4} '
+            f'{"BadP":>4} '
+            f'{"BesP":>4} '
+            f'{"Pair":>4} '
+            f'{"Biom":>4}'
+        )
+
+        for npc, loc, cost_row in zip(npcs, locs, costs):
+            npc.print_result(*loc, cost_row, Biome.from_coords(biomes, *loc))
+
+    if show:
+        print_result()
 
 
-layout(QUADRANTS[7], 0)
+def try_all_methods():
+    """
+    So far powell and cobyla are the most promising in short tests
+    """
+    quad = QUADRANTS[7]
+    initial_iters = 5
+    target_time = 10
+
+    for method in opt._minimize.MINIMIZE_METHODS:
+        if method not in {
+            'dogleg',
+            'newton-cg',
+            'slsqp',
+            'trust-constr',
+            'trust-exact',
+            'trust-krylov',
+            'trust-ncg',
+        }:
+            print(f'Method: {method}')
+            t0 = time()
+            optimise(quad, method, initial_iters, 0, False)
+            dur = time() - t0
+            print(f'{dur/initial_iters:.3f}s/iter')
+
+            optimise(
+                quad, method,
+                int(target_time/dur * initial_iters),
+                0, True
+            )
+            print()
+
+
+try_all_methods()
