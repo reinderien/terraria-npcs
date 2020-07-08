@@ -5,6 +5,8 @@ from itertools import chain, combinations
 from typing import Set, Union, ClassVar, Dict, Tuple, Iterable
 
 import numpy as np
+import numpy.random
+import scipy.optimize as opt
 
 
 HARD_MODE = False
@@ -288,23 +290,94 @@ def layout(biomes: BiomeQuadrants, initial_seed: int):
     )
     n = len(npcs)
 
+    CLOSE = 25
+    CMIN, CMAX = 0.75, 1.50
+
+    rand = numpy.random.default_rng(initial_seed)
+
     pair_coeffs = np.array([
         [this_npc.pair_cost(other_npc) for other_npc in npcs]
         for this_npc in npcs
     ])
+
+    def pair_cost(norms: np.ndarray) -> np.ndarray:
+        α = 1
+        μ = (
+            1 + (pair_coeffs - 1) / (
+                1 + np.exp(
+                    α*(norms - CLOSE)
+                )
+            )
+        )
+        return μ
 
     biome_coeffs = np.array([
         [npc.biome_cost(biome) for biome in biomes]
         for npc in npcs
     ])
 
-    # Pair costs: 25 cols
-    # Biome costs: 4 cols
-    # Simple crowding cost: 1 col
-    # Complex crowding cost: 1 col
+    biome_sign = np.array((
+        (1, -1, -1,  1),
+        (1,  1, -1, -1),
+    ), ndmin=3)
 
-    def complete_cost(par):
-        pass
+    def biome_cost(nodes: np.ndarray) -> np.ndarray:
+        # nodes: 19x2, nodes by xy
+        # biome_sign: 2x4, xy by quadrants
+        # sigmoid should be per node per xy per quadrant
+
+        α = 1
+        sigmoid = (
+            1 + np.exp(
+                -α * biome_sign * nodes[..., np.newaxis]
+            )
+        ).prod(axis=1)  # collapse over the xy (2) axis
+
+        μ = 1 + (biome_coeffs - 1)/sigmoid
+        return μ
+
+    def complete_cost(par: np.ndarray) -> float:
+        # par will be 38x1 for 19 NPCs, so needs to be reshaped to 19x2
+        nodes = par.reshape((-1, 2))
+
+        # This does not take advantage of triangular symmetry
+        coord_diffs = nodes[np.newaxis, :, :] - nodes[:, np.newaxis, :]
+        # Frobenius over xy (2) axis
+        norms = np.linalg.norm(coord_diffs, axis=2)  # 19x19
+
+        all_costs = np.concatenate((
+            pair_cost(norms),
+            biome_cost(nodes),
+        ), axis=1)
+        npc_costs = all_costs.prod(axis=1)
+        mean = npc_costs.mean()
+        return mean
+
+    def initial() -> np.ndarray:
+        """
+        Assuming that NPCs are roughly paired, and are otherwise not within 25
+        tiles of each other
+        """
+        pairs_per_edge = np.sqrt(n)
+        edge_width = (CLOSE + 1) * (pairs_per_edge - 1)
+        # This will be flattened to 2n, but whatever
+        return (rand.random((n, 2)) - 0.5) * edge_width
+
+    # Try out some options from
+    # https://docs.scipy.org/doc/scipy/reference/optimize.html#global-optimization
+    # basinhopping, differential_evolution, shgo, or dual_annealing
+
+    result = opt.basinhopping(
+        func=complete_cost,
+        x0=initial(),
+        T=CMAX - CMIN,  # T should be comparable to the separation between local minima
+        minimizer_kwargs={
+            # 'method': any of opt.MINIMIZE_METHODS
+        },
+        seed=rand,
+        disp=True,
+    )
+
     exit()
 
 

@@ -2,3 +2,4 @@ ipympl
 matplotlib
 notebook
 numpy
+scipy
