@@ -223,13 +223,13 @@ class NPC:
         return 1.00
 
     def print_result(self, x: float, y: float, cost: np.ndarray, biome: Biome):
-        best_pair = cost[:25].min()
-        worst_pair = cost[:25].max()
-        pair = cost[:25].prod()
-
-        biome_cost = cost[25:29].prod()
-
         overall = cost.prod()
+        pairs = cost[:-4]
+        worst_pair = pairs.max()
+        best_pair = pairs.min()
+        pair = pairs.prod()
+        biome_cost = cost[-4:-1].prod()
+        crowd_cost = cost[-1]
 
         print(
             f'{self.name:15} '
@@ -240,7 +240,8 @@ class NPC:
             f'{worst_pair:4.2f} '
             f'{best_pair:4.2f} '
             f'{pair:4.2f} '
-            f'{biome_cost:4.2f}'
+            f'{biome_cost:4.2f} '
+            f'{crowd_cost:4.2f} '
         )
 
 
@@ -320,8 +321,8 @@ def optimise(
     method: str,
     n_iters: int,
     initial_seed: int,
-    show: bool=True,
-    detail: bool=False,
+    show: bool = True,
+    detail: bool = False,
 ):
     npcs = tuple(
         npc
@@ -342,13 +343,8 @@ def optimise(
 
     def pair_cost(norms: np.ndarray) -> np.ndarray:
         α = 1
-        μ = (
-            1 + (pair_coeffs - 1) / (
-                1 + np.exp(
-                    α*(norms - CLOSE)
-                )
-            )
-        )
+        sigmoid = 1 + np.exp(α*(norms - CLOSE))
+        μ = 1 + (pair_coeffs - 1) / sigmoid
         return μ
 
     biome_coeffs = np.array([
@@ -376,6 +372,24 @@ def optimise(
         μ = 1 + (biome_coeffs - 1)/sigmoid
         return μ
 
+    def crowd_cost(norms: np.ndarray) -> np.ndarray:
+        C = 1.04
+        α1 = 1
+        α2 = 50
+
+        no_limits = (
+            1 + (C - 1)/(
+                1 + np.exp(α1*(norms - 25))
+            )
+        ).prod(axis=1)
+
+        with_min = 1 + np.log(
+            1 + np.exp(
+                α2*(no_limits/C - 1)
+            )
+        ) / α2
+        return with_min[:, np.newaxis]
+
     def complete_cost(par: np.ndarray) -> np.ndarray:
         # par will be 38x1 for 19 NPCs, so needs to be reshaped to 19x2
         nodes = par.reshape((-1, 2))
@@ -388,6 +402,7 @@ def optimise(
         all_costs = np.concatenate((
             pair_cost(norms),   # n=19
             biome_cost(nodes),  # 4
+            crowd_cost(norms),  # 1
         ), axis=1)
         return all_costs
 
@@ -442,7 +457,8 @@ def optimise(
             f'{"BadP":>4} '
             f'{"BesP":>4} '
             f'{"Pair":>4} '
-            f'{"Biom":>4}'
+            f'{"Biom":>4} '
+            f'{"Crwd":>4} '
         )
 
         for npc, loc, cost_row in zip(npcs, locs, costs):
@@ -484,4 +500,13 @@ def try_all_methods():
             print()
 
 
-try_all_methods()
+# try_all_methods()
+
+optimise(
+    QUADRANTS[7],
+    'cobyla',
+    20,
+    0,
+    True,
+    True,
+)
